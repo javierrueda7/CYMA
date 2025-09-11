@@ -517,11 +517,14 @@ class _FormsPageState extends State<FormsPage> {
                                 String resultString = projectStrings.join(';');
                                 
                                 bool tempEnv = enviarEncuesta;
-                                FirebaseFirestore.instance.collection('Encuestas').doc(widget.idForm).collection('Usuarios').doc(widget.uidUser).update({
+                                await FirebaseFirestore.instance
+                                .collection('Encuestas').doc(widget.idForm)
+                                .collection('Usuarios').doc(widget.uidUser)
+                                .update({
                                   'answer': resultString,
                                   'status': tempEnv ? 'ENVIADA' : 'GUARDADA',
                                   'date': DateTime.now(),
-                                  'idencuesta': widget.idForm
+                                  'idencuesta': widget.idForm,
                                 });
                                 if (tempEnv) {
                                   const String scriptURL = 'https://script.google.com/macros/s/AKfycbwl1b-qt61HCxZG2QtLYNsqvmAgVQ6NRUmEGbV0SQQaL4Hl6Yh3pwF2WpNkk-EJrAlq/exec';
