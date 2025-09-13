@@ -102,7 +102,7 @@ class _ListUserFormsState extends State<ListUserForms> {
                                         formName: item?['data']['name'],
                                         dates: item?['data']['startDate'] + ' - ' + item?['data']['endDate'],
                                         uidUser: uid,
-                                        hours: ((int.parse(item?['data']['days']))*9).toString(),
+                                        hours: ((int.parse(item?['data']['days']))*(int.parse(item?['data']['workdayHours']))).toString(),
                                         formState: item?['user']['status'],
                                         answers: item?['user']['status'] == 'ABIERTA' ?  'NULL' : item?['user']['answer'],
                                         date: item?['user']['status'] == 'ABIERTA' ? DateTime.now() : (item?['user']['date'] as Timestamp).toDate(),
