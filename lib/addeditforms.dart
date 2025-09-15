@@ -46,7 +46,6 @@ class _AddEditFormState extends State<AddEditForm> {
   List<String> selectedUsers = [];
   List<bool> preloadedSelection = [];
   TextEditingController hoursController = TextEditingController();
-  TextEditingController workdayController = TextEditingController(text: '9');
   List<String> statuses = ['CREADA', 'ACTIVA', 'CERRADA'];
   late QuerySnapshot activeUsersSnapshot;
   bool isLoading = false;
@@ -60,7 +59,6 @@ class _AddEditFormState extends State<AddEditForm> {
     daysController = TextEditingController();
     hoursController.text = '0';
     _loadActiveUsers();
-    _loadExistingWorkdayIfEditing();
 
     if (widget.id != null) {
       setState(() {
@@ -71,39 +69,12 @@ class _AddEditFormState extends State<AddEditForm> {
         selectedStatus = widget.status ?? 'CREADA';
         statuses = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ? ['ACTIVA', 'CERRADA'] : ['CREADA', 'ACTIVA', 'CERRADA'];
         activarEncuesta = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ?  true : false;
-        hoursController.text = (((int.parse(daysController.text)) * (int.tryParse(workdayController.text) ?? 9)).toString());
+        hoursController.text = (((int.parse(daysController.text)) * 9).toString());
       });
     } else {
       setState(() {
         selectAll = false;
       });
-    }
-  }
-
-  
-  Future<void> _loadExistingWorkdayIfEditing() async {
-    if (widget.id == null) return;
-    try {
-      final doc = await encuestas.doc(widget.id).get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>?;
-        final existing = data?['workdayHours'];
-        if (existing != null && existing.toString().isNotEmpty) {
-          final _wj = int.tryParse(existing.toString()) ?? 9;
-          workdayController.text = (_wj < 1 || _wj > 24) ? '9' : _wj.toString();
-        } else {
-          workdayController.text = '9';
-        }
-        final d = int.tryParse(daysController.text) ?? 0;
-        final j = int.tryParse(workdayController.text) ?? 9;
-        hoursController.text = (d * j).toString();
-        setState(() {});
-      }
-    } catch (e) {
-      workdayController.text = '9';
-      final d = int.tryParse(daysController.text) ?? 0;
-      hoursController.text = (d * 9).toString();
-      setState(() {});
     }
   }
 
@@ -265,33 +236,8 @@ class _AddEditFormState extends State<AddEditForm> {
                               contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                             ),
                             onChanged: (value) {
-                              final d = int.tryParse(value) ?? 0;
-                              final j = int.tryParse(workdayController.text) ?? 9;
-                              hoursController.text = (d * j).toString();
-                            },
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: SizedBox(
-                          width: 600,
-                          child: TextFormField(
-                            controller: workdayController,
-                            readOnly: false,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: <TextInputFormatter>[
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            decoration: InputDecoration(
-                              labelText: 'JORNADA (HRS)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                            ),
-                            onChanged: (value) {
-                              final j = int.tryParse(value) ?? 9;
-                              final d = int.tryParse(daysController.text) ?? 0;
-                              hoursController.text = (d * j).toString();
+                              int horas = int.parse(value) * 9;
+                              hoursController.text = horas.toString();
                             },
                           ),
                         ),
@@ -483,28 +429,15 @@ class _AddEditFormState extends State<AddEditForm> {
         startDateController.text.isEmpty ||
         endDateController.text.isEmpty ||
         daysController.text.isEmpty ||
-        workdayController.text.isEmpty ||
-        workdayController.text == '0' ||
         hoursController.text.isEmpty ||
         hoursController.text == '0' ||
         selectedStatus.isEmpty) {
-      return false;
-    }
-      final _j = int.tryParse(workdayController.text) ?? 0;
-    if (_j < 1 || _j > 24) {
       return false;
     }
     return true;
   }
 
   void _saveOrEditSurvey() async {
-    final __wj = int.tryParse(workdayController.text) ?? 0;
-    if (__wj < 1 || __wj > 24) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('La JORNADA (HRS) debe estar entre 1 y 24.')),
-      );
-      return;
-    }
     if (!_validateForm()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('POR FAVOR, COMPLETE TODOS LOS CAMPOS')),
@@ -593,7 +526,6 @@ class _AddEditFormState extends State<AddEditForm> {
       'days': daysController.text,
       'status': activarEncuesta == true ? 'ACTIVA' : selectedStatus,
       'hours': hoursController.text,
-      'workdayHours': workdayController.text,
       'tipo': widget.tipo
     });
 
@@ -620,7 +552,6 @@ class _AddEditFormState extends State<AddEditForm> {
         'days': daysController.text,
         'status': activarEncuesta == true && widget.status == 'CREADA' ? 'ACTIVA' : selectedStatus,
         'hours': hoursController.text,
-      'workdayHours': workdayController.text,
       });
 
       var userCollection = surveyDoc.collection('Usuarios');
