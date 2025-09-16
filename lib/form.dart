@@ -340,7 +340,7 @@ class _FormsPageState extends State<FormsPage> {
                         ),
                         SizedBox(height: 20),
                         Visibility(
-                          visible: widget.formState != 'ENVIADA',
+                          visible: /*widget.formState != 'ENVIADA'*/false,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
