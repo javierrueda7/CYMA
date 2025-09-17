@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:forms_app/form.dart';
@@ -102,7 +104,7 @@ class _ListUserFormsState extends State<ListUserForms> {
                                         formName: item?['data']['name'],
                                         dates: item?['data']['startDate'] + ' - ' + item?['data']['endDate'],
                                         uidUser: uid,
-                                        hours: ((int.parse(item?['data']['days']))*9).toString(),
+                                        hours: max((int.parse(item?['data']['days']) * 9) - 1, 0).toString(),
                                         formState: item?['user']['status'],
                                         answers: item?['user']['status'] == 'ABIERTA' ?  'NULL' : item?['user']['answer'],
                                         date: item?['user']['status'] == 'ABIERTA' ? DateTime.now() : (item?['user']['date'] as Timestamp).toDate(),
@@ -117,7 +119,7 @@ class _ListUserFormsState extends State<ListUserForms> {
                                         formName: item?['data']['name'],
                                         dates: item?['data']['startDate'] + ' - ' + item?['data']['endDate'],
                                         uidUser: uid,
-                                        hours: ((int.parse(item?['data']['days']))*9).toString(),
+                                        hours: max((int.parse(item?['data']['days']) * 9) - 1, 0).toString(),
                                         formState: 'ENVIADA',
                                         answers: item?['user']['status'] == 'ABIERTA' ?  'NULL' : item?['user']['answer'],
                                         date: item?['user']['status'] == 'ABIERTA' ? DateTime.now() : (item?['user']['date'] as Timestamp).toDate(),

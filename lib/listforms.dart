@@ -1,6 +1,8 @@
 
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:math';
+
 import 'package:forms_app/form.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -113,7 +115,7 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                                     IconButton(
                                       onPressed: () {
                                         String dates = item?['data']['startDate'] + ' - ' + item?['data']['endDate'];
-                                        String hours = ((int.parse(item?['data']['days']))*9).toString();
+                                        String hours = max((int.parse(item?['data']['days']) * 9) - 1, 0).toString();
                                         _loadAndShowUsers(context, item?['id'], item?['data']['name'] ?? '', dates, hours, item?['data']['status']);
                                       },
                                       icon: Icon(Icons.remove_red_eye_outlined, color: Colors.blue),

@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:forms_app/counter.dart';
 import 'package:forms_app/listforms.dart';
 import 'package:forms_app/listparam.dart';
 import 'package:forms_app/listusers.dart';
@@ -54,6 +55,25 @@ class _MainMenuState extends State<MainMenu> {
                       );
                     },
                     child: Text('RESPONDER ENCUESTA'),
+                  ),
+                ],
+              ),
+            ),
+            Visibility(
+              visible: role != 'USUARIO',
+              child: Column(
+                children: [
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HorasEncuestasPage(),
+                        ),
+                      );
+                    },
+                    child: const Text('RESUMEN DE HORAS REGISTRADAS'),
                   ),
                 ],
               ),
