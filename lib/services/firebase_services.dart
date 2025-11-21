@@ -107,40 +107,53 @@ Future<String> getUserRole() async {
 }
 
 Future<List<Map<String, dynamic>>> getUsuarios() async {
-  List<Map<String, dynamic>> usersList = [];
+  final List<Map<String, dynamic>> usersList = [];
   final CollectionReference usuarios = db.collection('Usuarios');
   final CollectionReference positions = db.collection('Cargos');
   final CollectionReference professions = db.collection('Profesiones');
 
-  // Fetch positions and professions to create a mapping of id to name
-  Map<String, String> positionNames = {};
-  Map<String, String> professionNames = {};
+  // Lanzamos las 3 consultas en paralelo
+  final futures = await Future.wait([
+    positions.get(),
+    professions.get(),
+    usuarios.get(),
+  ]);
 
-  QuerySnapshot positionDocs = await positions.get();
+  // ignore: unnecessary_cast
+  final QuerySnapshot positionDocs = futures[0] as QuerySnapshot;
+  // ignore: unnecessary_cast
+  final QuerySnapshot professionDocs = futures[1] as QuerySnapshot;
+  // ignore: unnecessary_cast
+  final QuerySnapshot users = futures[2] as QuerySnapshot;
+
+  // Mapear id -> nombre de cargos
+  final Map<String, String> positionNames = {};
   for (var document in positionDocs.docs) {
-    var data = document.data() as Map<String, dynamic>?;
+    final data = document.data() as Map<String, dynamic>?;
     if (data != null && data.containsKey('name')) {
       positionNames[document.id] = data['name'] as String;
     }
   }
 
-  QuerySnapshot professionDocs = await professions.get();
+  // Mapear id -> nombre de profesiones
+  final Map<String, String> professionNames = {};
   for (var document in professionDocs.docs) {
-    var data = document.data() as Map<String, dynamic>?;
+    final data = document.data() as Map<String, dynamic>?;
     if (data != null && data.containsKey('name')) {
       professionNames[document.id] = data['name'] as String;
     }
   }
 
-  // Query documents from 'Usuarios'
-  QuerySnapshot users = await usuarios.get();
+  // Usuarios
   for (var document in users.docs) {
-    var data = document.data() as Map<String, dynamic>?;
+    final data = document.data() as Map<String, dynamic>?;
     if (data != null) {
-      String positionName = positionNames[data['position']] ?? 'Unknown Position';
-      String professionName = professionNames[data['profession']] ?? 'Unknown Profession';
+      final String positionName =
+          positionNames[data['position']] ?? 'Unknown Position';
+      final String professionName =
+          professionNames[data['profession']] ?? 'Unknown Profession';
 
-      Map<String, dynamic> usuario = {
+      final Map<String, dynamic> usuario = {
         'id': document.id,
         'name': data['name'] ?? '',
         'email': data['email'] ?? '',
@@ -158,14 +171,13 @@ Future<List<Map<String, dynamic>>> getUsuarios() async {
     }
   }
 
-  // Sort the usersList by 'status' and then by 'name'
+  // Ordenar igual que antes: primero ACTIVO, luego por nombre
   usersList.sort((a, b) {
-    // Compare 'status' first
-    int statusComparison = a['status'] == 'ACTIVO' && b['status'] != 'ACTIVO'
-        ? -1
-        : (a['status'] != 'ACTIVO' && b['status'] == 'ACTIVO' ? 1 : 0);
+    final int statusComparison =
+        a['status'] == 'ACTIVO' && b['status'] != 'ACTIVO'
+            ? -1
+            : (a['status'] != 'ACTIVO' && b['status'] == 'ACTIVO' ? 1 : 0);
 
-    // If 'status' is the same, compare by 'name'
     if (statusComparison != 0) {
       return statusComparison;
     } else {
@@ -176,35 +188,42 @@ Future<List<Map<String, dynamic>>> getUsuarios() async {
   return usersList;
 }
 
+
 Future<List<Map<String, dynamic>>> getEncuestas() async {
-  List<Map<String, dynamic>> formsList = [];
+  final List<Map<String, dynamic>> formsList = [];
   final CollectionReference forms = db.collection('Encuestas');
 
-  // Apply a query filter to fetch documents where status != "ELIMINADA"
-  QuerySnapshot form = await forms.where('status', isNotEqualTo: 'ELIMINADA').get();
-  
-  for (var document in form.docs) {
-    // Fetch the Usuarios subcollection
-    final CollectionReference usuariosSubcollection = forms.doc(document.id).collection('Usuarios');
-    QuerySnapshot usuariosSnapshot = await usuariosSubcollection.get();
+  // Traemos solo encuestas cuyo status != "ELIMINADA"
+  final formSnap =
+      await forms.where('status', isNotEqualTo: 'ELIMINADA').get();
 
-    // Calculate the total number of documents in Usuarios subcollection
-    int totalUsuarios = usuariosSnapshot.size;
+  // Procesamos cada encuesta en paralelo
+  final futures = formSnap.docs.map((document) async {
+    // Subcolección Usuarios de esta encuesta
+    final usuariosSubcollection =
+        forms.doc(document.id).collection('Usuarios');
+    final usuariosSnapshot = await usuariosSubcollection.get();
 
-    // Calculate the number of documents with status != 'ENVIADA'
-    int nonEnviadaCount = usuariosSnapshot.docs.where((doc) => doc['status'] != 'ENVIADA').length;
+    final int totalUsuarios = usuariosSnapshot.size;
+    final int nonEnviadaCount = usuariosSnapshot.docs
+        .where((doc) => doc['status'] != 'ENVIADA')
+        .length;
 
-    Map<String, dynamic> encuesta = {
+    return {
       'id': document.id,
       'data': document.data(),
       'usuariosTotal': totalUsuarios,
       'usuariosNonEnviada': nonEnviadaCount,
     };
-    formsList.add(encuesta);
-  }
+  }).toList();
+
+  final results = await Future.wait(futures);
+
+  formsList.addAll(results);
   formsList.sort((a, b) => b['id'].compareTo(a['id']));
   return formsList;
 }
+
 
 Future<Map<String, dynamic>?> getEncuestaWithUsers(String encuestaId) async {
   // Reference to the specific "Encuesta" document
@@ -244,45 +263,50 @@ Future<Map<String, dynamic>?> getEncuestaWithUsers(String encuestaId) async {
   return null;
 }
 
-Future<List<Map<String, dynamic>>> getEncuestasUser(String searchString) async {
-  List<Map<String, dynamic>> formsList = [];
-  
-  // Reference to the "Encuestas" collection
-  final CollectionReference encuestasCollection = db.collection('Encuestas');
-  
-  // Query documents within the "Encuestas" collection
-  QuerySnapshot encuestasSnapshot = await encuestasCollection.get();
-  
-  for (var encuestaDoc in encuestasSnapshot.docs) {
-    // Get the data of the current "Encuesta" document and check if it's null
-    var encuestaData = encuestaDoc.data() as Map<String, dynamic>?;
-    if (encuestaData != null && encuestaData['status'] != 'ELIMINADA' && encuestaData['status'] != 'CREADA') {
-      // Reference to the "Usuarios" subcollection within the current "Encuesta" document
-      final CollectionReference usuariosCollection = encuestaDoc.reference.collection('Usuarios');
-      
-      // Check if the given string matches any document ID within the "Usuarios" subcollection
-      DocumentSnapshot usuarioDoc = await usuariosCollection.doc(searchString).get();
-      
-      // If a document with the matching ID is found in the subcollection
-      if (usuarioDoc.exists) {
-        // Create a map for the "Encuesta" document
-        Map<String, dynamic> encuesta = {
-          'id': encuestaDoc.id,
-          'data': encuestaData,
-          'user': usuarioDoc.data() as Map<String, dynamic>?
-        };
-        
-        // Add the map to the list
-        formsList.add(encuesta);
-      }
-    }
-  }
-  
-  // Sort the list by 'id' in descending order
-  formsList.sort((a, b) => b['id'].compareTo(a['id']));
+Future<List<Map<String, dynamic>>> getEncuestasUser(String uid) async {
+  final firestore = FirebaseFirestore.instance;
 
-  return formsList;
+  // 1) Obtener todas las encuestas (igual que antes)
+  final encuestasSnap = await firestore
+      .collection('Encuestas')
+      .get();
+
+  // 2) Procesar cada encuesta en paralelo
+  final futures = encuestasSnap.docs.map((encuestaDoc) async {
+    final encuestaData = encuestaDoc.data() as Map<String, dynamic>?;
+
+    if (encuestaData == null ||
+        encuestaData['status'] == 'ELIMINADA' ||
+        encuestaData['status'] == 'CREADA') {
+      return null;
+    }
+
+    // 3) Buscar al usuario dentro de la encuesta
+    final userSnap = await encuestaDoc.reference
+        .collection('Usuarios')
+        .doc(uid)
+        .get();
+
+    if (!userSnap.exists) return null;
+
+    return {
+      'id': encuestaDoc.id,
+      'data': encuestaData,
+      // ignore: unnecessary_cast
+      'user': userSnap.data() as Map<String, dynamic>?,
+    };
+  }).toList();
+
+  // 4) Esperar TODOS los futuros de una sola vez (paralelo)
+  final results = await Future.wait(futures);
+
+  // 5) Limpiar los null y ordenar
+  final filtered = results.where((e) => e != null).cast<Map<String, dynamic>>().toList();
+  filtered.sort((a, b) => b['id'].compareTo(a['id']));
+
+  return filtered;
 }
+
 
 Future<String> saveParameter(String param, String nombre, String estado) async {
   // Get a reference to the collection

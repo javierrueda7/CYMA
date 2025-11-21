@@ -63,8 +63,8 @@ class _FormsPageState extends State<FormsPage> {
     dataFetch = retrieveDataAndInit().whenComplete(() {
       if (widget.formState != 'ABIERTA' && widget.answers != 'NULL' && widget.answers.isNotEmpty) {
         projects = loadAnswers(widget.answers);
-        print(1);
-        print(projects);
+        //print(1);
+        //print(projects);
         initializeControllers(projects);   
         updateTotalHours();
       }
@@ -112,6 +112,72 @@ class _FormsPageState extends State<FormsPage> {
     });
     
   }
+
+  Future<bool> _sendToSheetsAtomic({
+    required String scriptURL,
+    required String idEncuesta,
+    required String idUsuario,
+    required List projects,
+    required String fechaString, // EXACTO: DateTime.now().toString()
+  }) async {
+    final submissionId = '$idEncuesta-$idUsuario-$fechaString';
+
+    // Mantener EXACTAMENTE los nombres y el orden esperado en Apps Script
+    final rows = <Map<String, dynamic>>[];
+    for (var p in projects) {
+      rows.add({
+        'idencuesta': idEncuesta,
+        'idusuario': idUsuario,
+        'proyecto':  p['project'],
+        'actividad': p['activity'],
+        'horas':     p['hours'],
+        'fecha':     fechaString, // mismo formato que ya usas (toString)
+      });
+    }
+
+    const int maxRetries = 3; // número máximo de intentos
+    int attempt = 0;
+
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        // Enviar como application/x-www-form-urlencoded (sin especificar headers)
+        final resp = await http.post(
+          Uri.parse(scriptURL),
+          body: {
+            'submissionId': submissionId,
+            'rows': convert.jsonEncode(rows), // rows va como JSON en un campo de formulario
+          },
+        );
+
+        print('POST Sheets attempt=$attempt status=${resp.statusCode}');
+        print('POST Sheets body=${resp.body}');
+
+        if (resp.statusCode == 200) {
+          final data = convert.jsonDecode(resp.body);
+          final status = (data['status'] ?? '').toString();
+          if (status == 'SUCCESS' || status == 'SUCCESS_ALREADY_PROCESSED') {
+            return true; // ✅ enviado correctamente o ya procesado
+          }
+        }
+      } catch (e) {
+        print('POST Sheets error (attempt $attempt) = $e');
+      }
+
+      // Si falló este intento, hacemos backoff antes del siguiente
+      if (attempt < maxRetries) {
+        final delayMs = 500 * attempt * attempt; // 0.5s, 2s, 4.5s...
+        print('POST Sheets retry in ${delayMs}ms...');
+        await Future.delayed(Duration(milliseconds: delayMs));
+      }
+    }
+
+    // Si ningún intento logró enviar correctamente
+    return false;
+  }
+
+
+
 
   Future<void> initPro() async {
     projectsList = await getParamwithId('Proyectos');
@@ -178,7 +244,7 @@ class _FormsPageState extends State<FormsPage> {
         }
       }
     } catch (error) {
-      print("Error retrieving data: $error");
+      //print("Error retrieving data: $error");
     }
   }
 
@@ -517,33 +583,49 @@ class _FormsPageState extends State<FormsPage> {
                                 String resultString = projectStrings.join(';');
                                 
                                 bool tempEnv = enviarEncuesta;
-                                await FirebaseFirestore.instance
-                                .collection('Encuestas').doc(widget.idForm)
-                                .collection('Usuarios').doc(widget.uidUser)
-                                .update({
-                                  'answer': resultString,
-                                  'status': tempEnv ? 'ENVIADA' : 'GUARDADA',
-                                  'date': DateTime.now(),
-                                  'idencuesta': widget.idForm,
-                                });
+                                // 1) Intentar enviar a Sheets primero (si el usuario eligió enviar)
+                                bool sheetsOk = false;
+                                String fechaString = DateTime.now().toString(); // MISMO formato que antes
+
                                 if (tempEnv) {
-                                  const String scriptURL = 'https://script.google.com/macros/s/AKfycbwl1b-qt61HCxZG2QtLYNsqvmAgVQ6NRUmEGbV0SQQaL4Hl6Yh3pwF2WpNkk-EJrAlq/exec';
-                                  for (var project in projects) {
-                                    String queryString = "?idencuesta=${widget.idForm}&idusuario=${widget.uidUser}&proyecto=${project['project']}&actividad=${project['activity']}&horas=${project['hours']}&fecha=${DateTime.now()}";
-                                    var finalURI = Uri.parse(scriptURL + queryString);
-                                    var response = await http.get(finalURI);
-                                    if (response.statusCode == 200) {
-                                      var bodyR = convert.jsonDecode(response.body);
-                                      print(bodyR);
-                                    }
-                                  }
+                                  const String scriptURL = 'https://script.google.com/macros/s/AKfycbx5IBms2-rf8gDG4aBQD1i-MwrybevSjf7NJMSFmTAZMGZ5OiznEHIWO15FmW2WMcGJ/exec';
+                                  print('tempEnv=$tempEnv  idForm=${widget.idForm}  uid=${widget.uidUser}');
+                                  sheetsOk = await _sendToSheetsAtomic(
+                                    scriptURL: scriptURL,
+                                    idEncuesta: widget.idForm,
+                                    idUsuario: widget.uidUser,
+                                    projects: projects,        // misma lista {project, activity, hours}
+                                    fechaString: fechaString,  // EXACTO: DateTime.now().toString()
+                                  );
                                 }
+
+                                // 2) Ahora sí, escribir el estado final en Firestore una sola vez
+                                await FirebaseFirestore.instance
+                                  .collection('Encuestas').doc(widget.idForm)
+                                  .collection('Usuarios').doc(widget.uidUser)
+                                  .update({
+                                    'answer': resultString,
+                                    'status': sheetsOk ? 'ENVIADA' : 'GUARDADA',
+                                    'date': DateTime.now(),
+                                    'idencuesta': widget.idForm,
+                                  });
+
+                                                                String snackText;
+                                if (tempEnv && sheetsOk) {
+                                  snackText = 'Encuesta enviada exitosamente.';
+                                } else if (tempEnv && !sheetsOk) {
+                                  snackText = 'Tus respuestas se guardaron, pero no se pudo enviar a Google Sheets por un problema de red.';
+                                } else {
+                                  snackText = 'Encuesta guardada exitosamente.';
+                                }
+
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(tempEnv ? 'Encuesta enviada exitosamente.' : 'Encuesta guardada exitosamente.'),
-                                    duration: Duration(seconds: 4),
+                                    content: Text(snackText),
+                                    duration: const Duration(seconds: 4),
                                   ),
                                 );
+
                                 widget.reloadList();
                                 setState(() {
                                   isLoading = false; // Data is no longer loading
@@ -865,18 +947,17 @@ class _FormsPageState extends State<FormsPage> {
   }
 
   String getProjectNameById(String id) {
-    print(id);
-    print(projectsList);
-    var project = projectsList.firstWhere((project) => project.id == id, orElse: () => Parametro(id: '', name: ''));
+    if (id.isEmpty) return '';
+    var project = projectsList.firstWhere((p) => p.id == id, orElse: () => Parametro(id: '', name: ''));
     return project.name;
   }
 
   String getActivityNameById(String id) {
-    print(id);
-    print(activitiesList);
-    var activity = activitiesList.firstWhere((activity) => activity.id == id, orElse: () => Parametro(id: '', name: ''));
+    if (id.isEmpty) return '';
+    var activity = activitiesList.firstWhere((a) => a.id == id, orElse: () => Parametro(id: '', name: ''));
     return activity.name;
   }
+
 }
 
 class Parametro {

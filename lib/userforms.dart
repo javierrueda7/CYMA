@@ -19,21 +19,26 @@ class ListUserForms extends StatefulWidget {
 }
 
 class _ListUserFormsState extends State<ListUserForms> {
-  
   late String uid;
+  // ignore: unused_field
+  late Future<List<dynamic>> _futureForms;
 
   @override
   void initState() {
-    uid = widget.uid;
     super.initState();
+    uid = widget.uid;
+    _futureForms = getEncuestasUser(uid); // cargamos por primera vez
   }
 
   bool isLoading = false;
 
-  void _reloadList() async {
+  void _reloadList() {
     setState(() {
+      // forzamos a FutureBuilder a usar un Future NUEVO
+      _futureForms = getEncuestasUser(uid);
     });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +69,7 @@ class _ListUserFormsState extends State<ListUserForms> {
             SizedBox(height: 10),
             Expanded(
               child: FutureBuilder(
-                future: getEncuestasUser(uid),
+                future: _futureForms,
                 builder: ((context, snapshot) {
                   if (snapshot.hasData) {
                     return ListView.builder(
@@ -90,50 +95,84 @@ class _ListUserFormsState extends State<ListUserForms> {
                                   ],
                                 ) : Text(item?['data']['status'], style: TextStyle(fontSize: 14),),
                                 SizedBox(width: 8,),
-                                IconButton(onPressed: () async {
-                                  String? status = await getStatus(item?['id'], uid);
-                                  print(status);
-                                  if (status != item?['user']['status']) {
+                                IconButton(
+                                  onPressed: () async {
+                                    String? status = await getStatus(item?['id'], uid);
+                                    print(status);
+                                    if (status != item?['user']['status']) {
+                                      _reloadList();
+                                    }
+
+                                    if (item?['data']['status'] == 'ACTIVA') {
+                                      // ACTIVA: se puede editar / responder
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => FormsPage(
+                                            idForm: item?['id'], // Accessing the document ID
+                                            formName: item?['data']['name'],
+                                            dates: item?['data']['startDate'] +
+                                                ' - ' +
+                                                item?['data']['endDate'],
+                                            uidUser: uid,
+                                            hours: max(
+                                              (int.parse(item?['data']['days']) * 9) - 1,
+                                              0,
+                                            ).toString(),
+                                            formState: item?['user']['status'],
+                                            answers: item?['user']['status'] == 'ABIERTA'
+                                                ? 'NULL'
+                                                : item?['user']['answer'],
+                                            date: item?['user']['status'] == 'ABIERTA'
+                                                ? DateTime.now()
+                                                : (item?['user']['date'] as Timestamp).toDate(),
+                                            reloadList: _reloadList,
+                                          ),
+                                        ),
+                                      );
+                                    } else {
+                                      // NO ACTIVA: solo visualizar, y mostrar mensaje
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => FormsPage(
+                                            idForm: item?['id'], // Accessing the document ID
+                                            formName: item?['data']['name'],
+                                            dates: item?['data']['startDate'] +
+                                                ' - ' +
+                                                item?['data']['endDate'],
+                                            uidUser: uid,
+                                            hours: max(
+                                              (int.parse(item?['data']['days']) * 9) - 1,
+                                              0,
+                                            ).toString(),
+                                            formState: 'ENVIADA',
+                                            answers: item?['user']['status'] == 'ABIERTA'
+                                                ? 'NULL'
+                                                : item?['user']['answer'],
+                                            date: item?['user']['status'] == 'ABIERTA'
+                                                ? DateTime.now()
+                                                : (item?['user']['date'] as Timestamp).toDate(),
+                                            reloadList: _reloadList,
+                                          ),
+                                        ),
+                                      );
+
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('La encuesta ya ha sido cerrada.'),
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                    }
+
+                                    // 🔁 Al volver de FormsPage, volvemos a consultar Firestore
                                     _reloadList();
-                                  }
-                                  if(item?['data']['status'] == 'ACTIVA'){
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => FormsPage(
-                                        idForm: item?['id'], // Accessing the document ID
-                                        formName: item?['data']['name'],
-                                        dates: item?['data']['startDate'] + ' - ' + item?['data']['endDate'],
-                                        uidUser: uid,
-                                        hours: max((int.parse(item?['data']['days']) * 9) - 1, 0).toString(),
-                                        formState: item?['user']['status'],
-                                        answers: item?['user']['status'] == 'ABIERTA' ?  'NULL' : item?['user']['answer'],
-                                        date: item?['user']['status'] == 'ABIERTA' ? DateTime.now() : (item?['user']['date'] as Timestamp).toDate(),
-                                        reloadList: _reloadList,
-                                      )), // Navigate to the NewUserPage
-                                    );
-                                  } else {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => FormsPage(
-                                        idForm: item?['id'], // Accessing the document ID
-                                        formName: item?['data']['name'],
-                                        dates: item?['data']['startDate'] + ' - ' + item?['data']['endDate'],
-                                        uidUser: uid,
-                                        hours: max((int.parse(item?['data']['days']) * 9) - 1, 0).toString(),
-                                        formState: 'ENVIADA',
-                                        answers: item?['user']['status'] == 'ABIERTA' ?  'NULL' : item?['user']['answer'],
-                                        date: item?['user']['status'] == 'ABIERTA' ? DateTime.now() : (item?['user']['date'] as Timestamp).toDate(),
-                                        reloadList: _reloadList,
-                                      )), // Navigate to the NewUserPage
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('La encuesta ya ha sido cerrada.'),
-                                        duration: Duration(seconds: 4),
-                                      ),
-                                    );
-                                  }
-                                }, icon: item?['user']['status'] == 'ENVIADA' ? Icon(Icons.remove_red_eye_outlined, color: Colors.blueAccent,) : Icon(Icons.edit, color: Colors.blueAccent))
+                                  },
+                                  icon: item?['user']['status'] == 'ENVIADA'
+                                      ? const Icon(Icons.visibility, color: Colors.blueAccent)
+                                      : const Icon(Icons.edit, color: Colors.blueAccent),
+                                ),
                               ],
                             ),
                           ),

@@ -292,38 +292,57 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
 
 
   Future<void> sendEmail(String id, String nameEncuesta, String body) async {
-    // Obtener los IDs de los usuarios seleccionados de la subcolección 'Usuarios' dentro de 'Encuestas'
-    var selectedUsersSnapshot = await FirebaseFirestore.instance
+    final firestore = FirebaseFirestore.instance;
+
+    // 1. Obtener IDs de la subcolección 'Usuarios' dentro de 'Encuestas'
+    final selectedUsersSnapshot = await firestore
         .collection('Encuestas')
         .doc(id)
         .collection('Usuarios')
         .get();
 
-    var selectedUsersIds = selectedUsersSnapshot.docs.map((doc) => doc.id).toList();
+    final selectedUsersIds =
+        selectedUsersSnapshot.docs.map((doc) => doc.id).toList();
 
-    List<String> selectedEmails = [];
+    // 2. Leer documentos de 'Usuarios' en paralelo (en vez de 1x1)
+    final futures = selectedUsersIds.map((userId) async {
+      final userDoc = await firestore.collection('Usuarios').doc(userId).get();
+      final userData = userDoc.data();
 
-    // Obtener los correos electrónicos de la colección principal 'Usuarios'
-    for (var userId in selectedUsersIds) {
-      var userDoc = await FirebaseFirestore.instance
-          .collection('Usuarios')
-          .doc(userId)
-          .get();
-          
-      var userData = userDoc.data();
       if (userDoc.exists && userData != null && userData.containsKey('email')) {
-        selectedEmails.add(userData['email']);
+        return userData['email'] as String;
       }
+      return null;
+    }).toList();
+
+    final selectedEmails = (await Future.wait(futures))
+        .whereType<String>()
+        .toList();
+
+    // Si no hay correos, no seguimos
+    if (selectedEmails.isEmpty) {
+      print('No se encontraron correos electrónicos para los usuarios seleccionados.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontraron correos electrónicos válidos.'),
+          ),
+        );
+      }
+      return;
     }
 
-    setState(() {
-      // Aquí puedes actualizar el estado del widget si es necesario
-    });
+    // Opcional: si quieres reflejar algo en la UI
+    if (mounted) {
+      setState(() {});
+    }
 
-    // selectedEmails ahora contiene todos los emails de los usuarios seleccionados.
-    print(selectedEmails);  // Para verificar la lista de correos electrónicos.
-    manualSendEmail(selectedEmails, nameEncuesta, body);
+    print(selectedEmails); // Para verificar la lista
+
+    // 3. Enviar correo usando tu función existente
+    await manualSendEmail(selectedEmails, nameEncuesta, body);
   }
+
 
   Future<void> manualSendEmail(List<String> recipients, String nameEncuesta, String body) async {
     String subject = "Invitación a diligenciar la encuesta $nameEncuesta";
@@ -419,70 +438,94 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
   }
 
 
-  Future<void> _loadAndShowUsers(BuildContext context, String id, String titulo, String dates, String hours, String status) async {
-    // Mostrar un círculo de carga mientras se obtienen los datos
+  Future<void> _loadAndShowUsers(
+    BuildContext context,
+    String id,
+    String titulo,
+    String dates,
+    String hours,
+    String status,
+  ) async {
+    // Mostrar círculo de carga mientras se obtienen los datos
     showDialog(
       context: context,
-      barrierDismissible: false, // Evita cerrar el diálogo haciendo clic fuera de él
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        return Center(
+        return const Center(
           child: CircularProgressIndicator(),
         );
       },
     );
 
+    final firestore = FirebaseFirestore.instance;
+
     try {
-      var selectedUsersSnapshot = await FirebaseFirestore.instance
+      // 1. Leer subcolección de usuarios de la encuesta
+      final selectedUsersSnapshot = await firestore
           .collection('Encuestas')
           .doc(id)
           .collection('Usuarios')
           .get();
 
-      List<User> users = [];
+      // 2. Disparar TODAS las lecturas a 'Usuarios' en paralelo (en vez de 1x1)
+      final futures = selectedUsersSnapshot.docs.map((doc) async {
+        final userId = doc.id;
+        final dataEncuestaUser = doc.data();
+        final userStatus = dataEncuestaUser['status'];
+        final userAnswer = dataEncuestaUser['answer'];
+        final userDate = dataEncuestaUser['date'];
 
-      // Obtener los nombres de la colección principal 'Usuarios' usando los IDs
-      for (var doc in selectedUsersSnapshot.docs) {
-        var userId = doc.id;
-        var userStatus = doc.data()['status'];
-        var userAnswer = doc.data()['answer'];
-        var userDate = doc.data()['date'];
+        final userDoc =
+            await firestore.collection('Usuarios').doc(userId).get();
+        final userData = userDoc.data();
 
-        var userDoc = await FirebaseFirestore.instance
-            .collection('Usuarios')
-            .doc(userId)
-            .get();
-
-        var userData = userDoc.data();
-        if (userDoc.exists && userData != null) {
-          users.add(User(id: userId, status: userStatus, data: userData, answer: userAnswer, date: userDate));
+        if (!userDoc.exists || userData == null) {
+          return null;
         }
-      }
 
-      // Ordenar por status con el orden: ABIERTA - GUARDADA - ENVIADA y luego por name
+        return User(
+          id: userId,
+          status: userStatus,
+          data: userData,
+          answer: userAnswer,
+          date: userDate,
+        );
+      }).toList();
+
+      // Esperar todos los futures y filtrar nulls
+      final users = (await Future.wait(futures))
+          .whereType<User>()
+          .toList();
+
+      // 3. Ordenar por estado y luego por nombre, igual que antes
       users.sort((a, b) {
-        // Definir el orden de los estados
         const statusOrder = {
           'ABIERTA': 0,
           'GUARDADA': 1,
           'ENVIADA': 2,
         };
 
-        // Comparar primero por status usando el orden definido
-        int statusComparison = statusOrder[a.status]!.compareTo(statusOrder[b.status]!);
-        if (statusComparison != 0) {
-          return statusComparison;
-        }
+        final orderA = statusOrder[a.status] ?? 999;
+        final orderB = statusOrder[b.status] ?? 999;
 
-        // Si los estados son iguales, comparar por name
-        return a.data['name'].compareTo(b.data['name']);
+        final statusComparison = orderA.compareTo(orderB);
+        if (statusComparison != 0) return statusComparison;
+
+        final nameA = (a.data['name'] ?? '') as String;
+        final nameB = (b.data['name'] ?? '') as String;
+        return nameA.compareTo(nameB);
       });
 
-
+      if (!mounted) {
+        // Si el widget ya no está montado, solo cierro el loader y salgo
+        Navigator.of(context).pop();
+        return;
+      }
 
       // Cerrar el círculo de carga
       Navigator.of(context).pop();
 
-      // Mostrar el diálogo con la lista de nombres y estados
+      // 4. Mostrar el diálogo con la lista de usuarios
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -499,7 +542,7 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                   return ListTile(
                     leading: Text(users[index].status),
                     title: Text(users[index].data['name']),
-                    subtitle: Text(users[index].id), // Display the user ID
+                    subtitle: Text(users[index].id), // ID del usuario
                     trailing: IconButton(
                       onPressed: () {
                         print(id);
@@ -509,12 +552,13 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                         print(hours);
                         print(users[index].answer);
                         print((users[index].date as Timestamp).toDate());
+
                         if (users[index].status != 'ABIERTA') {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => FormsPage(
-                                idForm: id, // Accessing the document ID
+                                idForm: id,
                                 formName: titulo,
                                 dates: dates,
                                 uidUser: users[index].id,
@@ -524,23 +568,30 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                                 date: (users[index].date as Timestamp).toDate(),
                                 reloadList: _reloadList,
                               ),
-                            ), // Navigate to the NewUserPage
+                            ),
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('El usuario no ha inicilizado esta encuesta'))
+                            const SnackBar(
+                              content: Text(
+                                'El usuario no ha inicilizado esta encuesta',
+                              ),
+                            ),
                           );
                         }
                       },
-                      icon: Icon(Icons.remove_red_eye_outlined, color: Colors.blueAccent)
-                    )
+                      icon: const Icon(
+                        Icons.remove_red_eye_outlined,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
                   );
                 },
               ),
             ),
             actions: <Widget>[
               TextButton(
-                child: Text('CERRAR'),
+                child: const Text('CERRAR'),
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
@@ -550,12 +601,21 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
         },
       );
     } catch (e) {
-      // Manejar errores aquí si es necesario
-      print('Error: $e');
+      print('Error al cargar usuarios: $e');
+
       // Cerrar el círculo de carga en caso de error
-      Navigator.of(context).pop();
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar usuarios: $e')),
+        );
+      }
     }
   }
+
 
 
 }
