@@ -1,0 +1,33 @@
+name: Deploy Flutter Web → GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release --base-href "/CYMA-EncuestasMOP/"
+
+      - name: Deploy to CYMA-EncuestasMOP
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          external_repository: javierrueda7/CYMA-EncuestasMOP
+          publish_branch: web
+          publish_dir: ./build/web
