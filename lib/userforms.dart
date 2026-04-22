@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:forms_app/form.dart';
 import 'package:forms_app/services/firebase_services.dart';
+import 'package:forms_app/widgets/forms_widgets.dart';
 import 'package:intl/intl.dart';
 
 class ListUserForms extends StatefulWidget {
@@ -76,25 +77,42 @@ class _ListUserFormsState extends State<ListUserForms> {
                       itemCount: snapshot.data?.length,
                       itemBuilder: (context, index) {
                         final item = snapshot.data?[index];
-                        return ListTile(
-                          leading: Text(item?['id'], style: TextStyle(fontSize: 16),),
-                          title: Text(item?['data']['name']),
-                          subtitle: Text(item?['data']['startDate'] + ' - ' + item?['data']['endDate']),
+                        final userStatus = item?['user']['status'] as String? ?? '';
+                        final surveyStatus = item?['data']['status'] as String? ?? '';
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          leading: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(item?['id'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1A3A6B))),
+                            ],
+                          ),
+                          title: Text(item?['data']['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(
+                            '${item?['data']['startDate']} - ${item?['data']['endDate']}',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF78909C)),
+                          ),
                           trailing: SizedBox(
-                            width: 150,
+                            width: 170,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                item?['user']['status'] != 'ABIERTA' ? Column(
+                                userStatus != 'ABIERTA' ? Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text(item?['user']['status'], style: TextStyle(fontSize: 14),),
-                                    Text(DateFormat('dd-MM-yyyy HH:mm').format(item?['user']['date'].toDate()), style: TextStyle(fontSize: 12),)
+                                    statusChip(userStatus),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      DateFormat('dd-MM-yyyy HH:mm').format(item?['user']['date'].toDate()),
+                                      style: const TextStyle(fontSize: 11, color: Color(0xFF78909C)),
+                                    ),
                                   ],
-                                ) : Text(item?['data']['status'], style: TextStyle(fontSize: 14),),
-                                SizedBox(width: 8,),
+                                ) : statusChip(surveyStatus),
+                                const SizedBox(width: 6),
                                 IconButton(
                                   onPressed: () async {
                                     String? status = await getStatus(item?['id'], uid);
@@ -176,7 +194,8 @@ class _ListUserFormsState extends State<ListUserForms> {
                               ],
                             ),
                           ),
-                        );
+                        ),  // ListTile
+                      );    // Card
                       },
                     );
                   } else {

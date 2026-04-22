@@ -37,7 +37,6 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
-    obtainUsersList();
     return Scaffold(
       body: Center(
         child: Container(
@@ -104,12 +103,9 @@ class _SignInPageState extends State<SignInPage> {
                             (user) => user['email'] == email,
                             orElse: () => null,
                           );
-                          print(1);
-                          print(userWithEmail);
-                          print (userWithEmail['status']);
-                          String rol = userWithEmail['role'];
                           if (userWithEmail != null &&
                                   userWithEmail['status'] == 'ACTIVO') {
+                          String rol = userWithEmail['role'];
                                     print(2);
                             // Allow login
                             FirebaseAuth.instance

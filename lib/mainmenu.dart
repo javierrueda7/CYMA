@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:forms_app/counter.dart';
 import 'package:forms_app/listforms.dart';
 import 'package:forms_app/listparam.dart';
 import 'package:forms_app/listusers.dart';
@@ -39,148 +38,79 @@ class _MainMenuState extends State<MainMenu> {
         title: Center(child: Text('CYMA - ENCUESTAS MOP')),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Visibility(
-              visible: role != 'ADMINISTRADOR',
-              child: Column(
-                children: [
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListUserForms(uid: uid)),
-                      );
-                    },
-                    child: Text('RESPONDER ENCUESTA'),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (role != 'ADMINISTRADOR') ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListUserForms(uid: uid))),
+                    icon: const Icon(Icons.edit_note, size: 20),
+                    label: const Text('RESPONDER ENCUESTA'),
                   ),
                 ],
-              ),
-            ),
-            Visibility(
-              visible: role != 'USUARIO',
-              child: Column(
-                children: [
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HorasEncuestasPage(),
-                        ),
-                      );
-                    },
-                    child: const Text('RESUMEN DE HORAS REGISTRADAS'),
+                if (role != 'USUARIO') ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListFormsScreen())),
+                    icon: const Icon(Icons.assignment_outlined, size: 20),
+                    label: const Text('ADMINISTRAR ENCUESTAS'),
                   ),
-                ],
-              ),
-            ),
-            Visibility(
-              visible: role != 'USUARIO',
-              child: Column(
-                children: [
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListFormsScreen()),
-                      );
-                    },
-                    child: Text('ADMINISTRAR ENCUESTAS'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListUsersScreen())),
+                    icon: const Icon(Icons.people_outline, size: 20),
+                    label: const Text('ADMINISTRAR USUARIOS'),
                   ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListUsersScreen()),
-                      );
-                    },
-                    child: Text('ADMINISTRAR USUARIOS'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListParameterScreen(param: 'Proyectos'))),
+                    icon: const Icon(Icons.business_center_outlined, size: 20),
+                    label: const Text('ADMINISTRAR PROYECTOS'),
                   ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListParameterScreen(param: 'Proyectos')),
-                      );
-                    },
-                    child: Text('ADMINISTRAR PROYECTOS'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListParameterScreen(param: 'Actividades'))),
+                    icon: const Icon(Icons.task_outlined, size: 20),
+                    label: const Text('ADMINISTRAR ACTIVIDADES'),
                   ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListParameterScreen(param: 'Actividades')),
-                      );
-                    },
-                    child: Text('ADMINISTRAR ACTIVIDADES'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListParameterScreen(param: 'Cargos'))),
+                    icon: const Icon(Icons.work_outline, size: 20),
+                    label: const Text('ADMINISTRAR CARGOS'),
                   ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListParameterScreen(param: 'Cargos')),
-                      );
-                    },
-                    child: Text('ADMINISTRAR CARGOS'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => ListParameterScreen(param: 'Profesiones'))),
+                    icon: const Icon(Icons.school_outlined, size: 20),
+                    label: const Text('ADMINISTRAR PROFESIONES'),
                   ),
-                  // ElevatedButton(
-                  //   onPressed: () async {
-                  //     sendEmail();
-                      // try {
-                      //   final accessToken = await getAccessToken();
-                      //   await sendZohoEmail(
-                      //     accessToken: accessToken,
-                      //     fromEmail: 'javieruedase@zohomail.com',
-                      //     toEmail: 'javieruedase@gmail.com',
-                      //     subject: 'Prueba de correo',
-                      //     content: 'contenido',
-                      //   );
-                      // } catch (e) {
-                      //   print('Error: $e');
-                      // }
-                  //   },
-                  //   child: Text('Enviar correo'),
-                  // ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ListParameterScreen(param: 'Profesiones')),
-                      );
-                    },
-                    child: Text('ADMINISTRAR PROFESIONES'),
-                  ),
-                  Visibility(
-                    visible: role != 'USUARIO',
-                    child: Column(
-                      children: [
-                        SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () {
-                            html.window.open(
-                              "https://app.powerbi.com/view?r=eyJrIjoiMzBiZGZjMGYtMjJlMy00NDhiLThlODUtNmE3Mzk3NjA1MWM2IiwidCI6IjJlZDU1NzRjLWY5YmEtNDQyNi05NjU4LWU0NzdhZDc0MzlkYiIsImMiOjR9",
-                              '_blank',
-                            );
-                          },
-                          child: Text('CONSULTAS'),
-                        ),
-                      ],
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => html.window.open(
+                      "https://app.powerbi.com/view?r=eyJrIjoiMzBiZGZjMGYtMjJlMy00NDhiLThlODUtNmE3Mzk3NjA1MWM2IiwidCI6IjJlZDU1NzRjLWY5YmEtNDQyNi05NjU4LWU0NzdhZDc0MzlkYiIsImMiOjR9",
+                      '_blank',
                     ),
+                    icon: const Icon(Icons.analytics_outlined, size: 20),
+                    label: const Text('CONSULTAS'),
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

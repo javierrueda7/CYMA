@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:forms_app/addeditforms.dart';
 import 'package:forms_app/services/firebase_services.dart';
+import 'package:forms_app/widgets/forms_widgets.dart';
 class ListFormsScreen extends StatefulWidget {
 
   ListFormsScreen({super.key});
@@ -96,10 +97,7 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.end,
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(
-                                            '${item?['data']['status'] ?? ''}',
-                                            style: TextStyle(fontSize: 14),
-                                          ),
+                                          statusChip(item?['data']['status'] ?? ''),
                                           Text(
                                             'USUARIOS ASOCIADOS: ${item?['usuariosTotal'] ?? ''}',
                                             style: TextStyle(fontSize: 14),

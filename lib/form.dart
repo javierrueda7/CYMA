@@ -98,19 +98,14 @@ class _FormsPageState extends State<FormsPage> {
     super.dispose();
   }
 
-  void _reloadList() async {    
-    await initPro().whenComplete(() async => await initAct()).whenComplete((() => setState(() {
-      
-    })));
+  void _reloadList() async {
+    await Future.wait([initPro(), initAct()]);
+    setState(() {});
   }
 
   Future<void> retrieveDataAndInit() async {
-    await retrieveData().whenComplete(() async {      
-      await initPro();
-    }).whenComplete(() async {
-      await initAct();
-    });
-    
+    await retrieveData();
+    await Future.wait([initPro(), initAct()]);
   }
 
   Future<bool> _sendToSheetsAtomic({
@@ -189,20 +184,18 @@ class _FormsPageState extends State<FormsPage> {
   }
 
   Future<List<Parametro>> getSugProjects(String query) async {
-    List<Parametro> savedProjects = await getParamwithId('Proyectos');
-    List<Parametro> filteredProjects = savedProjects
-        .where((project) => project.name.toLowerCase().contains(query.toLowerCase()))
-        .toList();
-    filteredProjects.sort((a, b) => a.name.trim().compareTo(b.name.trim()));
-    return filteredProjects;
+    final q = query.toLowerCase();
+    return projectsList
+        .where((p) => p.name.toLowerCase().contains(q))
+        .toList()
+      ..sort((a, b) => a.name.trim().compareTo(b.name.trim()));
   }
 
   Future<List<Parametro>> getSugActivities(String query) async {
-    List<Parametro> savedActivities = await getParamwithId('Actividades');
-    List<Parametro> filteredActivities = savedActivities
-        .where((activity) => activity.name.toLowerCase().contains(query.toLowerCase()))
+    final q = query.toLowerCase();
+    return activitiesList
+        .where((a) => a.name.toLowerCase().contains(q))
         .toList();
-    return filteredActivities;
   }
 
   Future<List<Parametro>> getParamwithId(String param) async {
@@ -331,28 +324,34 @@ class _FormsPageState extends State<FormsPage> {
                       return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: buildTextField('TIPO DE DOCUMENTO', idTypeController, true)),            
-                            SizedBox(width: 10),
-                            Expanded(child: buildTextField('NÚMERO DE IDENTIFICACIÓN', idController, true)),
-                            SizedBox(width: 10),
-                            Expanded(child: buildTextField('SEDE', sedeController, true)),
-                          ],
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('DATOS DEL ENCUESTADO',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1A3A6B), letterSpacing: 0.5)),
+                                const Divider(height: 14),
+                                Wrap(
+                                  spacing: 32,
+                                  runSpacing: 10,
+                                  children: [
+                                    _infoField('TIPO DOC.', idTypeController.text),
+                                    _infoField('IDENTIFICACIÓN', idController.text),
+                                    _infoField('SEDE', sedeController.text),
+                                    _infoField('NOMBRE', nameController.text),
+                                    _infoField('ROL', roleController.text),
+                                    _infoField('CARGO', positionController.text),
+                                    _infoField('PROFESIÓN', professionController.text),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        SizedBox(height: 10),
-                        buildTextField('NOMBRE', nameController, true),
-                        SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(child: buildTextField('ROL', roleController, true)),
-                            SizedBox(width: 10),            
-                            Expanded(child: buildTextField('CARGO', positionController, true)),
-                            SizedBox(width: 10),            
-                            Expanded(child: buildTextField('PROFESIÓN', professionController, true)),
-                          ],
-                        ),
-                        SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -437,13 +436,18 @@ class _FormsPageState extends State<FormsPage> {
                         SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: widget.formState == 'ENVIADA' || pressed ? null : () async {
+                            // Lock the button immediately to prevent double-submit
+                            setState(() {
+                              pressed = true;
+                              isLoading = true;
+                            });
+
                             String currentState = await getFormState(widget.idForm, widget.uidUser);
                             if (currentState != 'ENVIADA') {
-                              
-                              bool toReview = false;
-                              bool confirmed = true; // Default to true if no confirmation is required
 
-                              // Only show the confirmation dialog if enviarEncuesta is true
+                              bool toReview = false;
+                              bool confirmed = true;
+
                               if (enviarEncuesta) {
                                 confirmed = await showDialog(
                                   context: context,
@@ -454,13 +458,13 @@ class _FormsPageState extends State<FormsPage> {
                                       actions: [
                                         TextButton(
                                           onPressed: () {
-                                            Navigator.of(context).pop(false); // User cancels
+                                            Navigator.of(context).pop(false);
                                           },
                                           child: Text('Cancelar'),
                                         ),
                                         TextButton(
                                           onPressed: () {
-                                            Navigator.of(context).pop(true); // User confirms
+                                            Navigator.of(context).pop(true);
                                           },
                                           child: Text('Confirmar'),
                                         ),
@@ -471,18 +475,12 @@ class _FormsPageState extends State<FormsPage> {
                               }
 
                               if (!confirmed) {
-                                // If the user cancels, stop the process
                                 setState(() {
                                   isLoading = false;
                                   pressed = false;
                                 });
                                 return;
                               }
-
-                              setState(() {
-                                pressed = true;
-                                isLoading = true; // Data is now loading
-                              });
 
                               // Continue with the rest of your logic to update projects and send the survey...
                               setState(() {
@@ -574,18 +572,18 @@ class _FormsPageState extends State<FormsPage> {
                               }
 
                               if (!toReview) {
+                                // Single timestamp for consistency across Firestore and Sheets
+                                final DateTime now = DateTime.now();
+                                final String fechaString = now.toString();
+
                                 List<String> projectStrings = [];
-
                                 for (var project in projects) {
-                                  projectStrings.add("?idencuesta=${widget.idForm}&idusuario=${widget.uidUser}&proyecto=${project['project']}&actividad=${project['activity']}&horas=${project['hours']}&fecha=${DateTime.now()}");
+                                  projectStrings.add("?idencuesta=${widget.idForm}&idusuario=${widget.uidUser}&proyecto=${project['project']}&actividad=${project['activity']}&horas=${project['hours']}&fecha=$fechaString");
                                 }
-
                                 String resultString = projectStrings.join(';');
-                                
+
                                 bool tempEnv = enviarEncuesta;
-                                // 1) Intentar enviar a Sheets primero (si el usuario eligió enviar)
                                 bool sheetsOk = false;
-                                String fechaString = DateTime.now().toString(); // MISMO formato que antes
 
                                 if (tempEnv) {
                                   const String scriptURL = 'https://script.google.com/macros/s/AKfycbx5IBms2-rf8gDG4aBQD1i-MwrybevSjf7NJMSFmTAZMGZ5OiznEHIWO15FmW2WMcGJ/exec';
@@ -594,21 +592,44 @@ class _FormsPageState extends State<FormsPage> {
                                     scriptURL: scriptURL,
                                     idEncuesta: widget.idForm,
                                     idUsuario: widget.uidUser,
-                                    projects: projects,        // misma lista {project, activity, hours}
-                                    fechaString: fechaString,  // EXACTO: DateTime.now().toString()
+                                    projects: projects,
+                                    fechaString: fechaString,
                                   );
                                 }
 
-                                // 2) Ahora sí, escribir el estado final en Firestore una sola vez
-                                await FirebaseFirestore.instance
+                                // Transactional update: re-check status before writing to prevent
+                                // race conditions if the form was submitted from another session
+                                bool alreadyEnviada = false;
+                                final docRef = FirebaseFirestore.instance
                                   .collection('Encuestas').doc(widget.idForm)
-                                  .collection('Usuarios').doc(widget.uidUser)
-                                  .update({
+                                  .collection('Usuarios').doc(widget.uidUser);
+
+                                await FirebaseFirestore.instance.runTransaction((transaction) async {
+                                  final snapshot = await transaction.get(docRef);
+                                  final currentStatus = snapshot.data()?['status'] ?? '';
+                                  if (currentStatus == 'ENVIADA') {
+                                    alreadyEnviada = true;
+                                    return;
+                                  }
+                                  transaction.update(docRef, {
                                     'answer': resultString,
                                     'status': sheetsOk ? 'ENVIADA' : 'GUARDADA',
-                                    'date': DateTime.now(),
+                                    'date': now,
                                     'idencuesta': widget.idForm,
                                   });
+                                });
+
+                                if (alreadyEnviada) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Esta encuesta ya fue enviada desde otro dispositivo.'),
+                                      duration: Duration(seconds: 4),
+                                    ),
+                                  );
+                                  setState(() { isLoading = false; });
+                                  Navigator.of(context).pop();
+                                  return;
+                                }
 
                                                                 String snackText;
                                 if (tempEnv && sheetsOk) {
@@ -782,9 +803,11 @@ class _FormsPageState extends State<FormsPage> {
         );
       }
     });
-    return Column(
-      children: [
-        Row(
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             Expanded(
@@ -929,8 +952,7 @@ class _FormsPageState extends State<FormsPage> {
             ),
           ],
         ),
-        Divider(),
-      ],
+      ),
     );
   }
 
@@ -943,6 +965,21 @@ class _FormsPageState extends State<FormsPage> {
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       ),
+    );
+  }
+
+  Widget _infoField(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF78909C),
+                fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+        const SizedBox(height: 2),
+        Text(value.isNotEmpty ? value : '—',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black87)),
+      ],
     );
   }
 

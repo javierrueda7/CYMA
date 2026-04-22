@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+Widget statusChip(String status) {
+  final Color bg;
+  final Color fg;
+  switch (status.toUpperCase()) {
+    case 'ENVIADA':
+      bg = const Color(0xFF2E7D32); fg = Colors.white; break;
+    case 'GUARDADA':
+      bg = const Color(0xFFE65100); fg = Colors.white; break;
+    case 'ACTIVA':
+    case 'ABIERTA':
+      bg = const Color(0xFF1565C0); fg = Colors.white; break;
+    case 'CERRADA':
+      bg = const Color(0xFF6A1B9A); fg = Colors.white; break;
+    case 'CREADA':
+      bg = const Color(0xFF546E7A); fg = Colors.white; break;
+    default:
+      bg = const Color(0xFF90A4AE); fg = Colors.white;
+  }
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+    child: Text(status.toUpperCase(),
+        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
+  );
+}
+
 Container firebaseButton(BuildContext context, String title, Function onTap) {
   return Container(
     width: MediaQuery.of(context).size.width,

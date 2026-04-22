@@ -266,22 +266,19 @@ Future<Map<String, dynamic>?> getEncuestaWithUsers(String encuestaId) async {
 Future<List<Map<String, dynamic>>> getEncuestasUser(String uid) async {
   final firestore = FirebaseFirestore.instance;
 
-  // 1) Obtener todas las encuestas (igual que antes)
+  // Filter in Firestore to avoid downloading ELIMINADA/CREADA surveys
   final encuestasSnap = await firestore
       .collection('Encuestas')
+      .where('status', whereNotIn: ['ELIMINADA', 'CREADA'])
       .get();
 
-  // 2) Procesar cada encuesta en paralelo
+  // Process each survey in parallel
   final futures = encuestasSnap.docs.map((encuestaDoc) async {
     final encuestaData = encuestaDoc.data() as Map<String, dynamic>?;
 
-    if (encuestaData == null ||
-        encuestaData['status'] == 'ELIMINADA' ||
-        encuestaData['status'] == 'CREADA') {
-      return null;
-    }
+    if (encuestaData == null) return null;
 
-    // 3) Buscar al usuario dentro de la encuesta
+    // Look up the user's document within this survey
     final userSnap = await encuestaDoc.reference
         .collection('Usuarios')
         .doc(uid)
