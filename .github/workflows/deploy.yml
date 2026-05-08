@@ -23,12 +23,12 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href "/CYMA-EncuestasMOP/"
+        run: flutter build web --release --base-href "/EncuestasMOP/"
 
-      - name: Deploy to CYMA-EncuestasMOP
+      - name: Deploy to CyMA-EncuestasMOP/EncuestasMOP
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.DEPLOY_TOKEN }}
-          external_repository: javierrueda7/CYMA-EncuestasMOP
+          external_repository: CyMA-EncuestasMOP/EncuestasMOP
           publish_branch: web
           publish_dir: ./build/web
