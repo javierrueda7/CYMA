@@ -572,85 +572,109 @@ class _FormsPageState extends State<FormsPage> {
                               }
 
                               if (!toReview) {
-                                // Single timestamp for consistency across Firestore and Sheets
-                                final DateTime now = DateTime.now();
-                                final String fechaString = now.toString();
+                                try {
+                                  // Single timestamp used everywhere to keep data consistent
+                                  final DateTime now = DateTime.now();
+                                  final String fechaString = now.toString();
 
-                                List<String> projectStrings = [];
-                                for (var project in projects) {
-                                  projectStrings.add("?idencuesta=${widget.idForm}&idusuario=${widget.uidUser}&proyecto=${project['project']}&actividad=${project['activity']}&horas=${project['hours']}&fecha=$fechaString");
-                                }
-                                String resultString = projectStrings.join(';');
+                                  List<String> projectStrings = [];
+                                  for (var project in projects) {
+                                    projectStrings.add("?idencuesta=${widget.idForm}&idusuario=${widget.uidUser}&proyecto=${project['project']}&actividad=${project['activity']}&horas=${project['hours']}&fecha=$fechaString");
+                                  }
+                                  final String resultString = projectStrings.join(';');
 
-                                bool tempEnv = enviarEncuesta;
-                                bool sheetsOk = false;
+                                  final bool tempEnv = enviarEncuesta;
 
-                                if (tempEnv) {
-                                  const String scriptURL = 'https://script.google.com/macros/s/AKfycbx5IBms2-rf8gDG4aBQD1i-MwrybevSjf7NJMSFmTAZMGZ5OiznEHIWO15FmW2WMcGJ/exec';
-                                  print('tempEnv=$tempEnv  idForm=${widget.idForm}  uid=${widget.uidUser}');
-                                  sheetsOk = await _sendToSheetsAtomic(
-                                    scriptURL: scriptURL,
-                                    idEncuesta: widget.idForm,
-                                    idUsuario: widget.uidUser,
-                                    projects: projects,
-                                    fechaString: fechaString,
-                                  );
-                                }
+                                  // Pre-flight check right before Sheets: abort early if already ENVIADA
+                                  // (reduces race-condition window with concurrent sessions)
+                                  if (tempEnv) {
+                                    final preFlightState = await getFormState(widget.idForm, widget.uidUser);
+                                    if (preFlightState == 'ENVIADA') {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Esta encuesta ya fue enviada.'),
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                      setState(() { isLoading = false; });
+                                      Navigator.of(context).pop();
+                                      return;
+                                    }
+                                  }
 
-                                // Transactional update: re-check status before writing to prevent
-                                // race conditions if the form was submitted from another session
-                                bool alreadyEnviada = false;
-                                final docRef = FirebaseFirestore.instance
-                                  .collection('Encuestas').doc(widget.idForm)
-                                  .collection('Usuarios').doc(widget.uidUser);
+                                  bool sheetsOk = false;
+                                  if (tempEnv) {
+                                    const String scriptURL = 'https://script.google.com/macros/s/AKfycbx5IBms2-rf8gDG4aBQD1i-MwrybevSjf7NJMSFmTAZMGZ5OiznEHIWO15FmW2WMcGJ/exec';
+                                    sheetsOk = await _sendToSheetsAtomic(
+                                      scriptURL: scriptURL,
+                                      idEncuesta: widget.idForm,
+                                      idUsuario: widget.uidUser,
+                                      projects: projects,
+                                      fechaString: fechaString,
+                                    );
+                                  }
 
-                                await FirebaseFirestore.instance.runTransaction((transaction) async {
-                                  final snapshot = await transaction.get(docRef);
-                                  final currentStatus = snapshot.data()?['status'] ?? '';
-                                  if (currentStatus == 'ENVIADA') {
-                                    alreadyEnviada = true;
+                                  // Transactional Firestore update: final safeguard against race conditions
+                                  bool alreadyEnviada = false;
+                                  final docRef = FirebaseFirestore.instance
+                                    .collection('Encuestas').doc(widget.idForm)
+                                    .collection('Usuarios').doc(widget.uidUser);
+
+                                  await FirebaseFirestore.instance.runTransaction((transaction) async {
+                                    final snapshot = await transaction.get(docRef);
+                                    final currentStatus = snapshot.data()?['status'] ?? '';
+                                    if (currentStatus == 'ENVIADA') {
+                                      alreadyEnviada = true;
+                                      return;
+                                    }
+                                    transaction.update(docRef, {
+                                      'answer': resultString,
+                                      'status': sheetsOk ? 'ENVIADA' : 'GUARDADA',
+                                      'date': now,
+                                      'idencuesta': widget.idForm,
+                                    });
+                                  });
+
+                                  if (alreadyEnviada) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Esta encuesta ya fue enviada.'),
+                                        duration: Duration(seconds: 4),
+                                      ),
+                                    );
+                                    setState(() { isLoading = false; });
+                                    Navigator.of(context).pop();
                                     return;
                                   }
-                                  transaction.update(docRef, {
-                                    'answer': resultString,
-                                    'status': sheetsOk ? 'ENVIADA' : 'GUARDADA',
-                                    'date': now,
-                                    'idencuesta': widget.idForm,
-                                  });
-                                });
 
-                                if (alreadyEnviada) {
+                                  String snackText;
+                                  if (tempEnv && sheetsOk) {
+                                    snackText = 'Encuesta enviada exitosamente.';
+                                  } else if (tempEnv && !sheetsOk) {
+                                    snackText = 'Tus respuestas se guardaron, pero no se pudo enviar a Google Sheets por un problema de red.';
+                                  } else {
+                                    snackText = 'Encuesta guardada exitosamente.';
+                                  }
+
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Esta encuesta ya fue enviada desde otro dispositivo.'),
-                                      duration: Duration(seconds: 4),
-                                    ),
+                                    SnackBar(content: Text(snackText), duration: const Duration(seconds: 4)),
                                   );
+
+                                  widget.reloadList();
                                   setState(() { isLoading = false; });
                                   Navigator.of(context).pop();
-                                  return;
+
+                                } catch (e) {
+                                  // Any network or Firestore error: reset state so user can retry
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error al guardar la encuesta. Por favor intente de nuevo.'),
+                                      duration: const Duration(seconds: 5),
+                                      backgroundColor: Colors.red.shade700,
+                                    ),
+                                  );
+                                  setState(() { isLoading = false; pressed = false; });
                                 }
-
-                                                                String snackText;
-                                if (tempEnv && sheetsOk) {
-                                  snackText = 'Encuesta enviada exitosamente.';
-                                } else if (tempEnv && !sheetsOk) {
-                                  snackText = 'Tus respuestas se guardaron, pero no se pudo enviar a Google Sheets por un problema de red.';
-                                } else {
-                                  snackText = 'Encuesta guardada exitosamente.';
-                                }
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(snackText),
-                                    duration: const Duration(seconds: 4),
-                                  ),
-                                );
-
-                                widget.reloadList();
-                                setState(() {
-                                  isLoading = false; // Data is no longer loading
-                                });
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -665,9 +689,7 @@ class _FormsPageState extends State<FormsPage> {
                                 return;
                               }
                               widget.reloadList();
-                              setState(() {
-                                isLoading = false; // Data is no longer loading
-                              });
+                              setState(() { isLoading = false; });
                               Navigator.of(context).pop();
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
