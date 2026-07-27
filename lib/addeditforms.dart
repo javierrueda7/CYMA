@@ -69,7 +69,7 @@ class _AddEditFormState extends State<AddEditForm> {
         selectedStatus = widget.status ?? 'CREADA';
         statuses = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ? ['ACTIVA', 'CERRADA'] : ['CREADA', 'ACTIVA', 'CERRADA'];
         activarEncuesta = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ?  true : false;
-        int horas = (int.parse(daysController.text) * 9) - 1;
+        int horas = (int.parse(daysController.text) * 9) - 3;
         if (horas < 0) horas = 0;
         hoursController.text = horas.toString();
       });
@@ -238,7 +238,7 @@ class _AddEditFormState extends State<AddEditForm> {
                               contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                             ),
                             onChanged: (value) {
-                              int horas = (int.parse(value) * 9) - 1;
+                              int horas = (int.parse(value) * 9) - 3;
                               if (horas < 0) horas = 0;
                               hoursController.text = horas.toString();
                             },
@@ -247,7 +247,7 @@ class _AddEditFormState extends State<AddEditForm> {
                       ),
                       SizedBox(width: 10),
                       Expanded(
-                        child: buildTextField('HORAS ESPERADAS', hoursController, true),
+                        child: buildTextField('HORAS ESPERADAS', hoursController, false),
                       ),
                       SizedBox(width: 10),
                       Expanded(
