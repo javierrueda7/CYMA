@@ -13,6 +13,7 @@ class AddEditForm extends StatefulWidget {
   final String? endDate;
   final String? days;
   final String? status;
+  final String? hours;
   final String tipo;
   final VoidCallback reloadList;
 
@@ -23,6 +24,7 @@ class AddEditForm extends StatefulWidget {
     this.endDate,
     this.days,
     this.status,
+    this.hours,
     required this.tipo,
     required this.reloadList,
   });
@@ -69,9 +71,13 @@ class _AddEditFormState extends State<AddEditForm> {
         selectedStatus = widget.status ?? 'CREADA';
         statuses = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ? ['ACTIVA', 'CERRADA'] : ['CREADA', 'ACTIVA', 'CERRADA'];
         activarEncuesta = widget.status == 'ACTIVA' || widget.status == 'CERRADA' ?  true : false;
-        int horas = (int.parse(daysController.text) * 9) - 3;
-        if (horas < 0) horas = 0;
-        hoursController.text = horas.toString();
+        if (widget.hours != null && widget.hours!.isNotEmpty) {
+          hoursController.text = widget.hours!;
+        } else {
+          int horas = (int.parse(daysController.text) * 9) - 3;
+          if (horas < 0) horas = 0;
+          hoursController.text = horas.toString();
+        }
       });
     } else {
       setState(() {

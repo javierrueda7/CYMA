@@ -165,6 +165,7 @@ class _ListFormsScreenState extends State<ListFormsScreen> {
                                     endDate: item?['data']['endDate'],
                                     days: item?['data']['days'],
                                     status: item?['data']['status'],
+                                    hours: item?['data']['hours'],
                                     tipo: item?['data']['tipo'],
                                   );
                                 }
